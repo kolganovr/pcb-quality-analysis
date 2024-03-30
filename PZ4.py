@@ -14,33 +14,22 @@ if not os.path.exists('data'):
 
 
 for i in tqdm(range(0, len(IMAGES))):
-    # Открываем изображение и переводим его в массив
+    # Открываем изображение и переводим его в массив как чб
     image_name = IMAGES[i]
-    img = cv2.imread(PATH + image_name)
+    img = cv2.imread(PATH + image_name, cv2.IMREAD_GRAYSCALE)
 
-    def getVals(treshhold = None):
-        vals = []
+    # TODO: Динамический BLACKTRSHOLD в зависимости от ширины дорожек
+    # FIXME: 045_ang и ang1 плохо считаются
 
-        for line in img:
-            row = []
-            for pix in line:
-                if treshhold is not None:
-                    row.append(1 if sum(pix) > treshhold else 0)
-                else:
-                    row.append(sum(pix))
-            vals.append(row)
-
-        return np.array(vals)
-
-    after = getVals(treshhold=160)
+    treshold = 160
 
     roads = np.array([])
-    for row in after:
+    for row in img:
         r = np.array([], dtype=int)
         couterWhite = 0
         couterBlack = 0
         for pix in row:
-            if pix == 1:
+            if pix > treshold:
                 couterWhite += 1
             else:
                 couterBlack += 1
@@ -59,7 +48,7 @@ for i in tqdm(range(0, len(IMAGES))):
 
     sns.histplot(roads, stat="probability", discrete=True)
     plt.title(image_name)
-    
+
     # Сохраняем график
     plt.savefig('data/' + image_name + '.png')
         
