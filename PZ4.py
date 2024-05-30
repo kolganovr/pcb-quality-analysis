@@ -13,11 +13,11 @@ BLACKTRSHOLD = 10
 if not os.path.exists('data'):
     os.mkdir('data')
 
-# Создаем датафрейм с коллонками: Код файла (число в начале файла), Диагональное, Горизонтальное, Вертикальное
+# Создаем датафрейм с коллонками: Идеальная ширина (мкм) файла (число в начале файла), Диагональное, Горизонтальное, Вертикальное
 # НА каждой строчке в диагональном итд должен быть словарь: Мат.ожидание, СКО, Точность, Крит.Ошибка
 
 # Создаем датафрейм для сохранения данных
-df = pd.DataFrame(columns=['Код', 'Диагональное_Мат.Ожид', 'Диагональное_СКО', 'Диагональное_Точность', 'Диагональное_Крит.Ошибка',
+df = pd.DataFrame(columns=['Идеальная ширина (мкм)', 'Диагональное_Мат.Ожид', 'Диагональное_СКО', 'Диагональное_Точность', 'Диагональное_Крит.Ошибка',
                            'Горизонтальное_Мат.Ожид', 'Горизонтальное_СКО', 'Горизонтальное_Точность', 'Горизонтальное_Крит.Ошибка',
                            'Вертикальное_Мат.Ожид', 'Вертикальное_СКО', 'Вертикальное_Точность', 'Вертикальное_Крит.Ошибка'])
 
@@ -78,38 +78,82 @@ for i in tqdm(range(0, len(IMAGES))):
     else:
         raise Exception('Неизвестный угол')
     
-    # Переводим ширины дорожек из пикселей (кол-во dpi - код файла) в мм
+    # Переводим ширины дорожек из пикселей (кол-во dpi - Идеальная ширина (мкм) файла) в мм
     dpi = 1200
-    roads = roads / (dpi * 25.4) * 1000
+    roads = roads / (dpi / 25.4) * 1000
     
     mean = np.mean(roads)
     std = np.std(roads)
-    accuracy = np.count_nonzero(roads == roads[0]) / len(roads)
-    error = np.count_nonzero(roads != roads[0]) / len(roads)
 
+    idealWidth = int(code) * 10
+    
+    goodCount = 0
+    for road in roads:
+        if road*0.8 < idealWidth < road*1.2:
+            goodCount += 1
+
+    accuracy = goodCount / len(roads)
+    error = 1 - accuracy
     data = [mean, std, accuracy, error]
 
     # Округляем все данные до 3 знака после запятой
     data = [np.round(x, 3) for x in data]
 
     # Записываем данные в датафрейм
-    # Если этот код уже есть в датафрейме, а угол другой, то добавляем в соотвествующие столбцы
+    # Если этот Идеальная ширина (мкм) уже есть в датафрейме, а угол другой, то добавляем в соотвествующие столбцы
 
-    if code in df['Код'].values:
-        df.loc[df['Код'] == code, angleTable + '_Мат.Ожид'] = data[0]
-        df.loc[df['Код'] == code, angleTable + '_СКО'] = data[1]
-        df.loc[df['Код'] == code, angleTable + '_Точность'] = data[2]
-        df.loc[df['Код'] == code, angleTable + '_Крит.Ошибка'] = data[3]
+    if idealWidth in df['Идеальная ширина (мкм)'].values:
+        df.loc[df['Идеальная ширина (мкм)'] == idealWidth, angleTable + '_Мат.Ожид'] = data[0]
+        df.loc[df['Идеальная ширина (мкм)'] == idealWidth, angleTable + '_СКО'] = data[1]
+        df.loc[df['Идеальная ширина (мкм)'] == idealWidth, angleTable + '_Точность'] = data[2]
+        df.loc[df['Идеальная ширина (мкм)'] == idealWidth, angleTable + '_Крит.Ошибка'] = data[3]
     else:
-        df = df._append({'Код': code,
+        df = df._append({'Идеальная ширина (мкм)': idealWidth,
                         angleTable + '_Мат.Ожид': data[0],
                         angleTable + '_СКО': data[1],
                         angleTable + '_Точность': data[2],
                         angleTable + '_Крит.Ошибка': data[3]}, ignore_index=True)
         
     
+        
+    
+# Делаем df['Идеальная ширина (мкм)'] интом
+df['Идеальная ширина (мкм)'] = df['Идеальная ширина (мкм)'].astype(int)
 
 df.to_csv('data.csv', index=False)
+
+# Плотим данные о мат.ожидании ско и точности для каждого угла по 3 графика на одном графике
+
+x = df['Идеальная ширина (мкм)']
+plt.plot(x, df['Диагональное_Мат.Ожид'], label='Диагональное')
+plt.plot(x, df['Горизонтальное_Мат.Ожид'], label='Горизонтальное')
+plt.plot(x, df['Вертикальное_Мат.Ожид'], label='Вертикальное')
+plt.legend()
+plt.title('Мат.ожидание')
+plt.xlabel('Идеальная ширина (мкм)')
+plt.ylabel('Мат.ожидание')
+plt.grid()
+plt.show()
+
+plt.plot(x, df['Диагональное_СКО'], label='Диагональное')
+plt.plot(x, df['Горизонтальное_СКО'], label='Горизонтальное')
+plt.plot(x, df['Вертикальное_СКО'], label='Вертикальное')
+plt.legend()
+plt.title('СКО')
+plt.xlabel('Идеальная ширина (мкм)')
+plt.ylabel('СКО')
+plt.grid()
+plt.show()
+
+plt.plot(x, df['Диагональное_Точность'], label='Диагональное')
+plt.plot(x, df['Горизонтальное_Точность'], label='Горизонтальное')
+plt.plot(x, df['Вертикальное_Точность'], label='Вертикальное')
+plt.legend()
+plt.title('Точность')
+plt.xlabel('Идеальная ширина (мкм)')
+plt.ylabel('Точность')
+plt.grid()
+plt.show()
 
     
 
